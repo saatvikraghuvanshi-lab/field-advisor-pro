@@ -1,3 +1,6 @@
+@import "leaflet/dist/leaflet.css";
+@import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,6 +9,63 @@
 
 @layer base {
   :root {
+    /* Light Theme - Warm Earth Tones */
+    --background: 40 33% 96%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Warm Amber Primary */
+    --primary: 43 96% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 40 20% 90%;
+    --secondary-foreground: 222 30% 20%;
+
+    --muted: 40 15% 92%;
+    --muted-foreground: 220 15% 40%;
+
+    --accent: 43 80% 35%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status Colors */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    /* Borders and Inputs */
+    --border: 40 20% 85%;
+    --input: 40 20% 92%;
+    --ring: 43 96% 40%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 40 25% 94%;
+    --sidebar-foreground: 222 30% 20%;
+    --sidebar-primary: 43 96% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 20% 88%;
+    --sidebar-accent-foreground: 222 30% 20%;
+    --sidebar-border: 40 20% 85%;
+    --sidebar-ring: 43 96% 40%;
+
+    /* Custom TerraPulse tokens */
+    --glow-primary: 43 96% 50%;
+    --surface-elevated: 0 0% 100%;
+    --text-bright: 222 47% 11%;
+  }
+
+  .dark {
     /* Deep Slate Navy Background */
     --background: 222 47% 11%;
     --foreground: 48 96% 89%;
@@ -35,19 +95,10 @@
     /* Status Colors */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 100%;
-    
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
 
-    /* Borders and Inputs */
     --border: 222 30% 22%;
     --input: 222 30% 18%;
     --ring: 43 96% 56%;
-
-    --radius: 0.75rem;
 
     /* Sidebar */
     --sidebar-background: 222 47% 9%;
@@ -63,37 +114,6 @@
     --glow-primary: 43 96% 56%;
     --surface-elevated: 222 40% 14%;
     --text-bright: 0 0% 100%;
-  }
-
-  .dark {
-    /* TerraPulse is dark-first, same values */
-    --background: 222 47% 11%;
-    --foreground: 48 96% 89%;
-    --card: 222 47% 13%;
-    --card-foreground: 48 96% 89%;
-    --popover: 222 47% 15%;
-    --popover-foreground: 48 96% 89%;
-    --primary: 43 96% 56%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 222 30% 18%;
-    --secondary-foreground: 48 40% 80%;
-    --muted: 222 30% 20%;
-    --muted-foreground: 220 15% 55%;
-    --accent: 43 80% 45%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 222 30% 22%;
-    --input: 222 30% 18%;
-    --ring: 43 96% 56%;
-    --sidebar-background: 222 47% 9%;
-    --sidebar-foreground: 48 40% 85%;
-    --sidebar-primary: 43 96% 56%;
-    --sidebar-primary-foreground: 222 47% 11%;
-    --sidebar-accent: 222 30% 16%;
-    --sidebar-accent-foreground: 48 40% 85%;
-    --sidebar-border: 222 30% 18%;
-    --sidebar-ring: 43 96% 56%;
   }
 }
 
@@ -130,4 +150,16 @@
     backdrop-filter: blur(12px);
     border: 1px solid hsl(var(--border) / 0.5);
   }
+}
+
+/* Leaflet Geoman custom styling */
+.leaflet-pm-toolbar .leaflet-pm-icon-polygon,
+.leaflet-pm-toolbar .leaflet-pm-icon-rectangle,
+.leaflet-pm-toolbar .leaflet-pm-icon-delete {
+  background-color: hsl(var(--card)) !important;
+}
+
+.leaflet-pm-toolbar .button-container {
+  background-color: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
 }
