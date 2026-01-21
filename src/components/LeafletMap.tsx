@@ -1,0 +1,243 @@
+import { useEffect, useRef, useCallback } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import "@geoman-io/leaflet-geoman-free";
+import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+// Calculate geodesic area in acres
+function calculateAcres(latlngs: L.LatLng[]): number {
+  const earthRadius = 6378137; // meters
+  let area = 0;
+
+  if (latlngs.length < 3) return 0;
+
+  for (let i = 0; i < latlngs.length; i++) {
+    const p1 = latlngs[i];
+    const p2 = latlngs[(i + 1) % latlngs.length];
+
+    const lat1 = (p1.lat * Math.PI) / 180;
+    const lat2 = (p2.lat * Math.PI) / 180;
+    const lng1 = (p1.lng * Math.PI) / 180;
+    const lng2 = (p2.lng * Math.PI) / 180;
+
+    area += (lng2 - lng1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+  }
+
+  area = Math.abs((area * earthRadius * earthRadius) / 2);
+  const acres = area * 0.000247105; // Convert square meters to acres
+  return Math.round(acres * 100) / 100;
+}
+
+interface LeafletMapProps {
+  onFieldSelect?: (field: any) => void;
+  onFieldsChange?: (fields: any[]) => void;
+}
+
+export function LeafletMap({ onFieldSelect, onFieldsChange }: LeafletMapProps) {
+  const mapRef = useRef<L.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const drawnLayersRef = useRef<L.FeatureGroup>(new L.FeatureGroup());
+  const { user } = useAuth();
+
+  // Load existing fields from database
+  const loadFields = useCallback(async () => {
+    if (!user || !mapRef.current) return;
+
+    try {
+      const { data: fields, error } = await supabase
+        .from("fields")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Clear existing layers
+      drawnLayersRef.current.clearLayers();
+
+      // Add fields to map
+      fields?.forEach((field) => {
+        const coordinates = field.coordinates as number[][];
+        if (coordinates && coordinates.length > 0) {
+          const latlngs = coordinates.map((coord) => L.latLng(coord[0], coord[1]));
+          const polygon = L.polygon(latlngs, {
+            color: field.color || "#fbbf24",
+            fillColor: field.color || "#fbbf24",
+            fillOpacity: 0.3,
+            weight: 2,
+          });
+
+          polygon.bindPopup(`
+            <div style="font-family: system-ui; min-width: 150px;">
+              <strong style="color: #0f172a;">${field.name}</strong>
+              <br/>
+              <span style="color: #64748b; font-size: 12px;">Area: ${field.area_acres} acres</span>
+              ${field.ndvi_score ? `<br/><span style="color: #64748b; font-size: 12px;">NDVI: ${field.ndvi_score}</span>` : ''}
+            </div>
+          `);
+
+          polygon.on("click", () => {
+            onFieldSelect?.(field);
+          });
+
+          drawnLayersRef.current.addLayer(polygon);
+        }
+      });
+
+      onFieldsChange?.(fields || []);
+    } catch (error) {
+      console.error("Error loading fields:", error);
+    }
+  }, [user, onFieldSelect, onFieldsChange]);
+
+  // Save field to database
+  const saveField = async (layer: L.Polygon) => {
+    if (!user) {
+      toast.error("Please sign in to save fields");
+      return;
+    }
+
+    try {
+      const latlngs = layer.getLatLngs()[0] as L.LatLng[];
+      const coordinates = latlngs.map((ll) => [ll.lat, ll.lng]);
+      const areaAcres = calculateAcres(latlngs);
+
+      // Generate mock NDVI score
+      const ndviScore = Math.round((0.3 + Math.random() * 0.6) * 100) / 100;
+
+      const { data, error } = await supabase
+        .from("fields")
+        .insert({
+          user_id: user.id,
+          name: `Field ${Date.now().toString().slice(-4)}`,
+          coordinates: coordinates,
+          area_acres: areaAcres,
+          ndvi_score: ndviScore,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success(`Field saved: ${areaAcres} acres`);
+      
+      // Update popup with saved data
+      layer.bindPopup(`
+        <div style="font-family: system-ui; min-width: 150px;">
+          <strong style="color: #0f172a;">${data.name}</strong>
+          <br/>
+          <span style="color: #64748b; font-size: 12px;">Area: ${data.area_acres} acres</span>
+          <br/>
+          <span style="color: #64748b; font-size: 12px;">NDVI: ${data.ndvi_score}</span>
+        </div>
+      `);
+
+      layer.on("click", () => {
+        onFieldSelect?.(data);
+      });
+
+      loadFields();
+    } catch (error: any) {
+      console.error("Error saving field:", error);
+      toast.error("Failed to save field");
+    }
+  };
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    // Initialize map centered on Kansas (farmland)
+    const map = L.map(mapContainerRef.current, {
+      center: [39.0119, -98.4842],
+      zoom: 15,
+      zoomControl: false,
+    });
+
+    mapRef.current = map;
+
+    // Esri World Imagery (satellite tiles)
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      {
+        attribution: "Tiles &copy; Esri",
+        maxZoom: 19,
+      }
+    ).addTo(map);
+
+    // Add labels overlay
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      {
+        maxZoom: 19,
+      }
+    ).addTo(map);
+
+    // Add drawn layers to map
+    drawnLayersRef.current.addTo(map);
+
+    // Initialize Geoman drawing controls
+    map.pm.addControls({
+      position: "topright",
+      drawCircle: false,
+      drawCircleMarker: false,
+      drawMarker: false,
+      drawPolyline: false,
+      drawText: false,
+      cutPolygon: false,
+      rotateMode: false,
+    });
+
+    // Style Geoman controls to match theme
+    map.pm.setGlobalOptions({
+      pathOptions: {
+        color: "#fbbf24",
+        fillColor: "#fbbf24",
+        fillOpacity: 0.3,
+        weight: 2,
+      },
+    });
+
+    // Handle polygon creation
+    map.on("pm:create", (e) => {
+      if (e.layer instanceof L.Polygon) {
+        drawnLayersRef.current.addLayer(e.layer);
+        saveField(e.layer);
+      }
+    });
+
+    // Handle polygon removal
+    map.on("pm:remove", async (e) => {
+      // Note: For full delete sync, we'd need to store layer-to-field mapping
+      toast.info("Field removed from map");
+    });
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  // Load fields when user changes
+  useEffect(() => {
+    if (user) {
+      loadFields();
+    }
+  }, [user, loadFields]);
+
+  // Expose map controls
+  const zoomIn = () => mapRef.current?.zoomIn();
+  const zoomOut = () => mapRef.current?.zoomOut();
+  const locate = () => {
+    mapRef.current?.locate({ setView: true, maxZoom: 16 });
+  };
+
+  return (
+    <div 
+      ref={mapContainerRef} 
+      className="w-full h-full"
+      style={{ minHeight: "400px" }}
+    />
+  );
+}
