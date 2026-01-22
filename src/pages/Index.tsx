@@ -1,7 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { FieldSidebar } from "@/components/FieldSidebar";
-import { LeafletMap } from "@/components/LeafletMap";
+import { LeafletMap, LeafletMapRef } from "@/components/LeafletMap";
+import { MapToolsPanel } from "@/components/MapToolsPanel";
+import { GeoTool } from "@/components/GeoprocessingToolbar";
+import { CustomLayer } from "@/components/DataLayerUpload";
+import { Alert, AlertNotification } from "@/components/AlertsPanel";
 import { Compass, Signal } from "lucide-react";
+import { toast } from "sonner";
 
 interface Field {
   id: string;
@@ -14,6 +19,26 @@ interface Field {
 const Index = () => {
   const [fields, setFields] = useState<Field[]>([]);
   const [selectedField, setSelectedField] = useState<Field | null>(null);
+  
+  // Time-series state
+  const [currentYear, setCurrentYear] = useState(2024);
+  
+  // Geoprocessing state
+  const [activeTool, setActiveTool] = useState<GeoTool>("none");
+  const [measurementResult, setMeasurementResult] = useState<{
+    type: "distance" | "area";
+    value: number;
+    unit: string;
+  } | null>(null);
+  
+  // Custom layers state
+  const [customLayers, setCustomLayers] = useState<CustomLayer[]>([]);
+  
+  // Alerts state
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [notifications, setNotifications] = useState<AlertNotification[]>([]);
+
+  const mapRef = useRef<LeafletMapRef>(null);
 
   const handleFieldSelect = useCallback((field: Field) => {
     setSelectedField(field);
@@ -22,6 +47,73 @@ const Index = () => {
   const handleFieldsChange = useCallback((newFields: Field[]) => {
     setFields(newFields);
   }, []);
+
+  const handleToolChange = useCallback((tool: GeoTool) => {
+    setActiveTool(tool);
+    if (tool === "none") {
+      setMeasurementResult(null);
+    }
+    mapRef.current?.setGeoTool(tool);
+  }, []);
+
+  const handleMeasurementResult = useCallback((result: { type: "distance" | "area"; value: number; unit: string }) => {
+    setMeasurementResult(result);
+  }, []);
+
+  const handleNotificationDismiss = useCallback((id: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, dismissed: true } : n))
+    );
+  }, []);
+
+  // Check alerts when fields change
+  useEffect(() => {
+    if (fields.length === 0 || alerts.length === 0) return;
+
+    alerts.forEach((alert) => {
+      if (!alert.active) return;
+
+      fields.forEach((field) => {
+        let value: number | null = null;
+        
+        if (alert.metric === "ndvi") {
+          value = field.ndvi_score;
+        }
+        
+        if (value === null) return;
+
+        const isTriggered =
+          alert.condition === "above"
+            ? value > alert.threshold
+            : value < alert.threshold;
+
+        if (isTriggered) {
+          const existingNotification = notifications.find(
+            (n) => n.alertId === alert.id && !n.dismissed
+          );
+          
+          if (!existingNotification) {
+            const newNotification: AlertNotification = {
+              id: crypto.randomUUID(),
+              alertId: alert.id,
+              message: `${alert.name}: ${field.name} has ${alert.metric.toUpperCase()} ${alert.condition} ${alert.threshold} (current: ${value})`,
+              severity: alert.condition === "below" ? "critical" : "warning",
+              timestamp: new Date(),
+              dismissed: false,
+            };
+            
+            setNotifications((prev) => [newNotification, ...prev]);
+            toast.warning(newNotification.message);
+          }
+        }
+      });
+    });
+  }, [fields, alerts]);
+
+  // Update custom layers on map
+  useEffect(() => {
+    mapRef.current?.updateCustomLayers(customLayers);
+  }, [customLayers]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -37,8 +129,11 @@ const Index = () => {
         {/* Map Container */}
         <div className="absolute inset-0">
           <LeafletMap 
+            ref={mapRef}
             onFieldSelect={handleFieldSelect}
             onFieldsChange={handleFieldsChange}
+            onMeasurementResult={handleMeasurementResult}
+            currentYear={currentYear}
           />
         </div>
 
@@ -53,10 +148,32 @@ const Index = () => {
             </div>
             <div className="w-px h-4 bg-border" />
             <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-mono">{currentYear}</span>
+            </div>
+            <div className="w-px h-4 bg-border" />
+            <div className="flex items-center gap-2">
               <Signal className="w-4 h-4 text-success" />
               <span className="text-xs text-muted-foreground">Connected</span>
             </div>
           </div>
+        </div>
+
+        {/* Tools Panel - Right Side */}
+        <div className="absolute top-4 right-16 z-[1000] w-80 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto">
+          <MapToolsPanel
+            fields={fields}
+            currentYear={currentYear}
+            onYearChange={setCurrentYear}
+            activeTool={activeTool}
+            onToolChange={handleToolChange}
+            measurementResult={measurementResult}
+            customLayers={customLayers}
+            onCustomLayersChange={setCustomLayers}
+            alerts={alerts}
+            notifications={notifications}
+            onAlertsChange={setAlerts}
+            onNotificationDismiss={handleNotificationDismiss}
+          />
         </div>
 
         {/* Bottom Status Bar */}
