@@ -10,7 +10,8 @@ import {
   Activity,
   Sparkles,
   Settings,
-  LogOut
+  LogOut,
+  Pencil
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -30,13 +31,15 @@ interface FieldSidebarProps {
   fields?: Field[];
   selectedField?: Field | null;
   onFieldSelect?: (field: Field) => void;
+  onEditField?: () => void;
 }
 
 export function FieldSidebar({ 
   className, 
   fields = [], 
   selectedField,
-  onFieldSelect 
+  onFieldSelect,
+  onEditField,
 }: FieldSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user, signOut } = useAuth();
@@ -185,9 +188,19 @@ export function FieldSidebar({
             {/* Selected Field Analysis */}
             {selectedField && (
               <div className="surface-glass rounded-xl p-4 border border-primary/20">
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium text-foreground">Field Analysis</span>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-medium text-foreground">Field Analysis</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={onEditField}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
                 </div>
                 <div className="space-y-3">
                   <div>
