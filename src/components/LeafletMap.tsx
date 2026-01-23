@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "@geoman-io/leaflet-geoman-free";
@@ -8,7 +8,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { GeoTool } from "./GeoprocessingToolbar";
 import { CustomLayer } from "./DataLayerUpload";
-
+import { Crosshair, ZoomIn, ZoomOut, Navigation } from "lucide-react";
+import { Button } from "@/components/ui/button";
 // Calculate geodesic area in acres
 function calculateAcres(latlngs: L.LatLng[]): number {
   const earthRadius = 6378137; // meters
@@ -54,6 +55,8 @@ interface LeafletMapProps {
   onFieldsChange?: (fields: any[]) => void;
   onMeasurementResult?: (result: { type: "distance" | "area"; value: number; unit: string }) => void;
   currentYear?: number;
+  userLocation?: { latitude: number; longitude: number } | null;
+  onLocationChange?: (lat: number, lng: number) => void;
 }
 
 export interface LeafletMapRef {
@@ -62,18 +65,22 @@ export interface LeafletMapRef {
   zoomIn: () => void;
   zoomOut: () => void;
   locate: () => void;
+  refreshFields: () => void;
 }
 
 export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
-  ({ onFieldSelect, onFieldsChange, onMeasurementResult, currentYear }, ref) => {
+  ({ onFieldSelect, onFieldsChange, onMeasurementResult, currentYear, userLocation, onLocationChange }, ref) => {
     const mapRef = useRef<L.Map | null>(null);
     const mapContainerRef = useRef<HTMLDivElement>(null);
     const drawnLayersRef = useRef<L.FeatureGroup>(new L.FeatureGroup());
     const customLayersRef = useRef<L.LayerGroup>(new L.LayerGroup());
     const measureLayersRef = useRef<L.LayerGroup>(new L.LayerGroup());
+    const userMarkerRef = useRef<L.CircleMarker | null>(null);
+    const userAccuracyRef = useRef<L.Circle | null>(null);
     const geoToolRef = useRef<GeoTool>("none");
     const measurePointsRef = useRef<L.LatLng[]>([]);
     const measureMarkersRef = useRef<L.Marker[]>([]);
+    const hasInitializedLocation = useRef(false);
     const { user } = useAuth();
 
     // Expose methods via ref
@@ -137,6 +144,7 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       zoomIn: () => mapRef.current?.zoomIn(),
       zoomOut: () => mapRef.current?.zoomOut(),
       locate: () => mapRef.current?.locate({ setView: true, maxZoom: 16 }),
+      refreshFields: () => loadFields(),
     }));
 
     // Load existing fields from database
@@ -333,10 +341,10 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
     useEffect(() => {
       if (!mapContainerRef.current || mapRef.current) return;
 
-      // Initialize map centered on Kansas (farmland)
+      // Initialize map - will center on user location if available, else Kansas
       const map = L.map(mapContainerRef.current, {
         center: [39.0119, -98.4842],
-        zoom: 15,
+        zoom: 4, // Start zoomed out, will zoom in when location is found
         zoomControl: false,
       });
 
@@ -403,6 +411,11 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       map.on("click", handleMapClick);
       map.on("dblclick", handleMapDblClick);
 
+      // Handle location found
+      map.on("locationfound", (e) => {
+        onLocationChange?.(e.latlng.lat, e.latlng.lng);
+      });
+
       return () => {
         map.remove();
         mapRef.current = null;
@@ -416,12 +429,104 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       }
     }, [user, loadFields]);
 
+    // Update user location marker
+    useEffect(() => {
+      if (!mapRef.current || !userLocation) return;
+
+      const { latitude, longitude } = userLocation;
+      const latlng = L.latLng(latitude, longitude);
+
+      // Center map on first location fix
+      if (!hasInitializedLocation.current) {
+        mapRef.current.setView(latlng, 15);
+        hasInitializedLocation.current = true;
+      }
+
+      // Create or update the pulsing blue dot
+      if (userMarkerRef.current) {
+        userMarkerRef.current.setLatLng(latlng);
+      } else {
+        userMarkerRef.current = L.circleMarker(latlng, {
+          radius: 8,
+          color: "#fff",
+          fillColor: "#3b82f6",
+          fillOpacity: 1,
+          weight: 3,
+          className: "user-location-marker",
+        }).addTo(mapRef.current);
+
+        // Add pulsing effect
+        const pulseIcon = L.divIcon({
+          className: "user-location-pulse",
+          iconSize: [24, 24],
+          iconAnchor: [12, 12],
+        });
+        L.marker(latlng, { icon: pulseIcon }).addTo(mapRef.current);
+      }
+
+      // Update accuracy circle
+      if (userAccuracyRef.current) {
+        userAccuracyRef.current.setLatLng(latlng);
+      } else {
+        userAccuracyRef.current = L.circle(latlng, {
+          radius: 50,
+          color: "#3b82f6",
+          fillColor: "#3b82f6",
+          fillOpacity: 0.1,
+          weight: 1,
+        }).addTo(mapRef.current);
+      }
+    }, [userLocation]);
+
+    const handleLocate = useCallback(() => {
+      if (mapRef.current) {
+        if (userLocation) {
+          mapRef.current.setView([userLocation.latitude, userLocation.longitude], 15);
+        } else {
+          mapRef.current.locate({ setView: true, maxZoom: 16 });
+        }
+      }
+    }, [userLocation]);
+
     return (
-      <div
-        ref={mapContainerRef}
-        className="w-full h-full"
-        style={{ minHeight: "400px" }}
-      />
+      <div className="relative w-full h-full" style={{ minHeight: "400px" }}>
+        <div
+          ref={mapContainerRef}
+          className="w-full h-full"
+        />
+
+        {/* Map Controls */}
+        <div className="absolute top-4 right-4 z-[1001] flex flex-col gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="surface-glass h-9 w-9"
+            onClick={() => mapRef.current?.zoomIn()}
+            title="Zoom In"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="surface-glass h-9 w-9"
+            onClick={() => mapRef.current?.zoomOut()}
+            title="Zoom Out"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </Button>
+          <div className="w-full h-px bg-border my-1" />
+          <Button
+            variant="outline"
+            size="icon"
+            className="surface-glass h-9 w-9"
+            onClick={handleLocate}
+            title="My Location"
+          >
+            <Navigation className="w-4 h-4 text-primary" />
+          </Button>
+        </div>
+      </div>
     );
   }
 );

@@ -5,8 +5,17 @@ import { MapToolsPanel } from "@/components/MapToolsPanel";
 import { GeoTool } from "@/components/GeoprocessingToolbar";
 import { CustomLayer } from "@/components/DataLayerUpload";
 import { Alert, AlertNotification } from "@/components/AlertsPanel";
-import { Compass, Signal } from "lucide-react";
+import { WeatherWidget } from "@/components/WeatherWidget";
+import { FieldTelemetry } from "@/components/FieldTelemetry";
+import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
+import { FieldEditDialog } from "@/components/FieldEditDialog";
+import { ViewModeToggle, ViewMode } from "@/components/ViewModeToggle";
+import { Compass, Signal, Pencil } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useGeolocation } from "@/hooks/useGeolocation";
+import { useWeather } from "@/hooks/useWeather";
+import { cn } from "@/lib/utils";
 
 interface Field {
   id: string;
@@ -19,6 +28,10 @@ interface Field {
 const Index = () => {
   const [fields, setFields] = useState<Field[]>([]);
   const [selectedField, setSelectedField] = useState<Field | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  
+  // View mode state
+  const [viewMode, setViewMode] = useState<ViewMode>("desktop");
   
   // Time-series state
   const [currentYear, setCurrentYear] = useState(2024);
@@ -38,7 +51,18 @@ const Index = () => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [notifications, setNotifications] = useState<AlertNotification[]>([]);
 
+  // Geolocation and weather hooks
+  const { latitude, longitude, loading: geoLoading, permissionDenied } = useGeolocation();
+  const { weather, loading: weatherLoading, fetchWeather } = useWeather();
+
   const mapRef = useRef<LeafletMapRef>(null);
+
+  // Fetch weather when location is available
+  useEffect(() => {
+    if (latitude && longitude) {
+      fetchWeather(latitude, longitude);
+    }
+  }, [latitude, longitude, fetchWeather]);
 
   const handleFieldSelect = useCallback((field: Field) => {
     setSelectedField(field);
@@ -64,6 +88,20 @@ const Index = () => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, dismissed: true } : n))
     );
+  }, []);
+
+  const handleLocationChange = useCallback((lat: number, lng: number) => {
+    fetchWeather(lat, lng);
+  }, [fetchWeather]);
+
+  const handleFieldUpdated = useCallback(() => {
+    mapRef.current?.refreshFields();
+    setSelectedField(null);
+  }, []);
+
+  const handleFieldDeleted = useCallback(() => {
+    mapRef.current?.refreshFields();
+    setSelectedField(null);
   }, []);
 
   // Check alerts when fields change
@@ -115,14 +153,22 @@ const Index = () => {
     mapRef.current?.updateCustomLayers(customLayers);
   }, [customLayers]);
 
+  const userLocation = latitude && longitude ? { latitude, longitude } : null;
+
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      {/* Sidebar */}
-      <FieldSidebar 
-        fields={fields}
-        selectedField={selectedField}
-        onFieldSelect={handleFieldSelect}
-      />
+    <div className={cn(
+      "flex h-screen w-full overflow-hidden",
+      viewMode === "mobile" && "max-w-[390px] mx-auto border-x border-border"
+    )}>
+      {/* Sidebar - hidden in mobile view */}
+      {viewMode === "desktop" && (
+        <FieldSidebar 
+          fields={fields}
+          selectedField={selectedField}
+          onFieldSelect={handleFieldSelect}
+          onEditField={() => setEditDialogOpen(true)}
+        />
+      )}
 
       {/* Main Map Area */}
       <main className="relative flex-1 overflow-hidden">
@@ -134,6 +180,8 @@ const Index = () => {
             onFieldsChange={handleFieldsChange}
             onMeasurementResult={handleMeasurementResult}
             currentYear={currentYear}
+            userLocation={userLocation}
+            onLocationChange={handleLocationChange}
           />
         </div>
 
@@ -155,11 +203,20 @@ const Index = () => {
               <Signal className="w-4 h-4 text-success" />
               <span className="text-xs text-muted-foreground">Connected</span>
             </div>
+            <div className="w-px h-4 bg-border hidden sm:block" />
+            <ViewModeToggle 
+              mode={viewMode} 
+              onModeChange={setViewMode} 
+              className="hidden sm:flex"
+            />
           </div>
         </div>
 
-        {/* Tools Panel - Right Side */}
-        <div className="absolute top-4 right-16 z-[1000] w-80 max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto">
+        {/* Tools Panel - Right Side (hidden in mobile or when field is selected) */}
+        <div className={cn(
+          "absolute top-4 z-[1000] max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto",
+          viewMode === "mobile" ? "right-4 w-64" : "right-16 w-80"
+        )}>
           <MapToolsPanel
             fields={fields}
             currentYear={currentYear}
@@ -174,6 +231,40 @@ const Index = () => {
             onAlertsChange={setAlerts}
             onNotificationDismiss={handleNotificationDismiss}
           />
+        </div>
+
+        {/* Left Side Panels - Weather, Telemetry, AI Advisor */}
+        <div className={cn(
+          "absolute left-4 z-[1000] w-80 space-y-3 pointer-events-auto",
+          viewMode === "mobile" ? "hidden" : "top-20"
+        )}>
+          <WeatherWidget weather={weather} loading={weatherLoading} />
+          
+          {selectedField && (
+            <>
+              <div className="surface-glass rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-foreground">
+                    {selectedField.name}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => setEditDialogOpen(true)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {selectedField.area_acres} acres • NDVI: {selectedField.ndvi_score ?? "N/A"}
+                </div>
+              </div>
+              
+              <FieldTelemetry field={selectedField} />
+              <AIAdvisorPanel field={selectedField} weather={weather} />
+            </>
+          )}
         </div>
 
         {/* Bottom Status Bar */}
@@ -196,7 +287,40 @@ const Index = () => {
             <span className="text-xs text-muted-foreground">1 km</span>
           </div>
         </div>
+
+        {/* Mobile Bottom Bar (when in mobile view) */}
+        {viewMode === "mobile" && selectedField && (
+          <div className="absolute bottom-16 left-4 right-4 z-[1000] pointer-events-auto">
+            <div className="surface-glass rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-foreground">
+                  {selectedField.name}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditDialogOpen(true)}
+                >
+                  <Pencil className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {selectedField.area_acres} acres • NDVI: {selectedField.ndvi_score ?? "N/A"}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* Field Edit Dialog */}
+      <FieldEditDialog
+        field={selectedField}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onFieldUpdated={handleFieldUpdated}
+        onFieldDeleted={handleFieldDeleted}
+      />
     </div>
   );
 };
