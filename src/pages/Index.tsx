@@ -9,8 +9,8 @@ import { WeatherWidget } from "@/components/WeatherWidget";
 import { FieldTelemetry } from "@/components/FieldTelemetry";
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
 import { FieldEditDialog } from "@/components/FieldEditDialog";
-import { ViewModeToggle, ViewMode } from "@/components/ViewModeToggle";
-import { Compass, Signal, Pencil } from "lucide-react";
+import { NavigationBar } from "@/components/NavigationBar";
+import { Compass, Signal, Pencil, Route } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useGeolocation } from "@/hooks/useGeolocation";
@@ -25,13 +25,18 @@ interface Field {
   color: string;
 }
 
+type ViewMode = "desktop" | "mobile";
+
 const Index = () => {
   const [fields, setFields] = useState<Field[]>([]);
   const [selectedField, setSelectedField] = useState<Field | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
-  // View mode state
-  const [viewMode, setViewMode] = useState<ViewMode>("desktop");
+  // View mode state - now from localStorage
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem("terrapulse-view-mode");
+    return (saved as ViewMode) || "desktop";
+  });
   
   // Time-series state
   const [currentYear, setCurrentYear] = useState(2024);
@@ -185,8 +190,13 @@ const Index = () => {
           />
         </div>
 
-        {/* Top Bar - Coordinates & Status */}
+        {/* Navigation Bar */}
         <div className="absolute top-4 left-4 z-[1000] pointer-events-none">
+          <NavigationBar className="pointer-events-auto" />
+        </div>
+
+        {/* Status Bar */}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] pointer-events-none hidden md:block">
           <div className="surface-glass rounded-xl px-4 py-2.5 flex items-center gap-4 pointer-events-auto">
             <div className="flex items-center gap-2">
               <Compass className="w-4 h-4 text-primary" />
@@ -203,12 +213,6 @@ const Index = () => {
               <Signal className="w-4 h-4 text-success" />
               <span className="text-xs text-muted-foreground">Connected</span>
             </div>
-            <div className="w-px h-4 bg-border hidden sm:block" />
-            <ViewModeToggle 
-              mode={viewMode} 
-              onModeChange={setViewMode} 
-              className="hidden sm:flex"
-            />
           </div>
         </div>
 
