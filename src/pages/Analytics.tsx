@@ -15,8 +15,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { NDVITrendChart } from "@/components/analytics/NDVITrendChart";
+import { PrecipitationChart } from "@/components/analytics/PrecipitationChart";
+import { CropHealthChart } from "@/components/analytics/CropHealthChart";
+import { FieldSelector } from "@/components/analytics/FieldSelector";
 
 interface Message {
   role: "user" | "assistant";
@@ -25,15 +32,48 @@ interface Message {
 
 const ADVISOR_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rural-advisor`;
 
+interface Field {
+  id: string;
+  name: string;
+  area_acres: number;
+  ndvi_score: number | null;
+}
+
 export default function Analytics() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [panelPosition, setPanelPosition] = useState({ x: 20, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
+  const [fields, setFields] = useState<Field[]>([]);
+  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const dragOffset = useRef({ x: 0, y: 0 });
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Fetch fields from database
+  useEffect(() => {
+    const fetchFields = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from("fields")
+        .select("id, name, area_acres, ndvi_score")
+        .eq("user_id", user.id);
+      
+      if (error) {
+        console.error("Error fetching fields:", error);
+        return;
+      }
+      
+      setFields(data || []);
+    };
+
+    fetchFields();
+  }, [user]);
+
+  const selectedField = fields.find(f => f.id === selectedFieldId);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -192,54 +232,143 @@ export default function Analytics() {
       </header>
 
       <main className="max-w-7xl mx-auto p-4 space-y-6">
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="surface-glass rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Leaf className="w-4 h-4 text-success" />
-              <span className="text-xs text-muted-foreground">Avg NDVI</span>
+        {/* Field Selector and Quick Stats */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <FieldSelector
+            fields={fields}
+            selectedFieldId={selectedFieldId}
+            onFieldSelect={setSelectedFieldId}
+          />
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="surface-glass rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Leaf className="w-3 h-3 text-success" />
+                <span className="text-xs text-muted-foreground">Avg NDVI</span>
+              </div>
+              <p className="text-lg font-bold text-foreground">
+                {selectedField?.ndvi_score?.toFixed(2) || "0.58"}
+              </p>
+              <p className="text-xs text-success flex items-center gap-1">
+                <TrendingUp className="w-3 h-3" /> +5%
+              </p>
             </div>
-            <p className="text-2xl font-bold text-foreground">0.58</p>
-            <p className="text-xs text-success flex items-center gap-1 mt-1">
-              <TrendingUp className="w-3 h-3" /> +5% from last month
-            </p>
-          </div>
-          <div className="surface-glass rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Droplets className="w-4 h-4 text-blue-500" />
-              <span className="text-xs text-muted-foreground">Soil Moisture</span>
+            <div className="surface-glass rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Droplets className="w-3 h-3 text-blue-500" />
+                <span className="text-xs text-muted-foreground">Moisture</span>
+              </div>
+              <p className="text-lg font-bold text-foreground">42%</p>
+              <p className="text-xs text-muted-foreground">Optimal</p>
             </div>
-            <p className="text-2xl font-bold text-foreground">42%</p>
-            <p className="text-xs text-muted-foreground mt-1">Optimal range</p>
-          </div>
-          <div className="surface-glass rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Thermometer className="w-4 h-4 text-orange-500" />
-              <span className="text-xs text-muted-foreground">Avg Temp</span>
+            <div className="surface-glass rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <Thermometer className="w-3 h-3 text-orange-500" />
+                <span className="text-xs text-muted-foreground">Temp</span>
+              </div>
+              <p className="text-lg font-bold text-foreground">72°F</p>
+              <p className="text-xs text-muted-foreground">Growing</p>
             </div>
-            <p className="text-2xl font-bold text-foreground">72°F</p>
-            <p className="text-xs text-muted-foreground mt-1">Growing conditions</p>
-          </div>
-          <div className="surface-glass rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <BarChart3 className="w-4 h-4 text-primary" />
-              <span className="text-xs text-muted-foreground">Total Fields</span>
+            <div className="surface-glass rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <BarChart3 className="w-3 h-3 text-primary" />
+                <span className="text-xs text-muted-foreground">Fields</span>
+              </div>
+              <p className="text-lg font-bold text-foreground">{fields.length}</p>
+              <p className="text-xs text-muted-foreground">
+                {fields.reduce((acc, f) => acc + f.area_acres, 0).toFixed(0)} ac
+              </p>
             </div>
-            <p className="text-2xl font-bold text-foreground">9</p>
-            <p className="text-xs text-muted-foreground mt-1">1,873 acres total</p>
           </div>
         </div>
 
-        {/* Analytics Content Placeholder */}
-        <div className="surface-glass rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Field Performance Over Time</h2>
-          <p className="text-muted-foreground text-sm">
-            Select a field from the map to view detailed analytics and historical trends.
-          </p>
-          <div className="mt-4 h-64 flex items-center justify-center border border-dashed border-border rounded-lg">
-            <p className="text-muted-foreground">Chart visualization coming soon</p>
-          </div>
-        </div>
+        {/* Charts Section with Tabs */}
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList className="bg-muted/50">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="ndvi">NDVI Analysis</TabsTrigger>
+            <TabsTrigger value="precipitation">Precipitation</TabsTrigger>
+            <TabsTrigger value="health">Crop Health</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <NDVITrendChart fieldName={selectedField?.name} />
+              <PrecipitationChart fieldName={selectedField?.name} />
+            </div>
+            <CropHealthChart fieldName={selectedField?.name} />
+          </TabsContent>
+
+          <TabsContent value="ndvi">
+            <NDVITrendChart fieldName={selectedField?.name} />
+            <div className="mt-4 surface-glass rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-2">NDVI Interpretation</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div className="p-2 rounded bg-red-500/20 border border-red-500/30">
+                  <span className="font-medium">0.0 - 0.2</span>
+                  <p className="text-muted-foreground">Bare soil/water</p>
+                </div>
+                <div className="p-2 rounded bg-yellow-500/20 border border-yellow-500/30">
+                  <span className="font-medium">0.2 - 0.4</span>
+                  <p className="text-muted-foreground">Sparse vegetation</p>
+                </div>
+                <div className="p-2 rounded bg-green-500/20 border border-green-500/30">
+                  <span className="font-medium">0.4 - 0.6</span>
+                  <p className="text-muted-foreground">Moderate vegetation</p>
+                </div>
+                <div className="p-2 rounded bg-emerald-500/20 border border-emerald-500/30">
+                  <span className="font-medium">0.6 - 1.0</span>
+                  <p className="text-muted-foreground">Dense vegetation</p>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="precipitation">
+            <PrecipitationChart fieldName={selectedField?.name} />
+            <div className="mt-4 surface-glass rounded-xl p-4">
+              <h3 className="text-sm font-medium mb-2">Precipitation Summary</h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold text-foreground">28.5"</p>
+                  <p className="text-xs text-muted-foreground">Annual Total</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">2.4"</p>
+                  <p className="text-xs text-muted-foreground">Monthly Avg</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-success">+12%</p>
+                  <p className="text-xs text-muted-foreground">vs Last Year</p>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="health">
+            <CropHealthChart fieldName={selectedField?.name} />
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="surface-glass rounded-xl p-4">
+                <h4 className="text-sm font-medium mb-2 text-success">Health Index</h4>
+                <p className="text-xs text-muted-foreground">
+                  Overall vegetation vitality based on chlorophyll content and leaf area index.
+                </p>
+              </div>
+              <div className="surface-glass rounded-xl p-4">
+                <h4 className="text-sm font-medium mb-2 text-primary">Growth Rate</h4>
+                <p className="text-xs text-muted-foreground">
+                  Biomass accumulation rate measured through temporal NDVI changes.
+                </p>
+              </div>
+              <div className="surface-glass rounded-xl p-4">
+                <h4 className="text-sm font-medium mb-2 text-destructive">Stress Indicator</h4>
+                <p className="text-xs text-muted-foreground">
+                  Environmental stress factors including water deficit and heat stress.
+                </p>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Movable AI Advisor Panel */}
