@@ -372,9 +372,9 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       customLayersRef.current.addTo(map);
       measureLayersRef.current.addTo(map);
 
-      // Initialize Geoman drawing controls
+      // Initialize Geoman drawing controls - positioned at topleft to avoid overlap
       map.pm.addControls({
-        position: "topright",
+        position: "topleft",
         drawCircle: false,
         drawCircleMarker: false,
         drawMarker: false,
@@ -495,8 +495,8 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
           className="w-full h-full"
         />
 
-        {/* Map Controls */}
-        <div className="absolute top-4 right-4 z-[1001] flex flex-col gap-2">
+        {/* Map Controls - Bottom Right to avoid Geoman overlap */}
+        <div className="absolute bottom-20 right-4 z-[1001] flex flex-col gap-2">
           <Button
             variant="outline"
             size="icon"

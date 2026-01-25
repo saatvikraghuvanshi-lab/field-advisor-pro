@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -12,19 +13,35 @@ import {
   User, 
   Palette,
   Settings as SettingsIcon,
-  Wheat
+  Wheat,
+  Monitor,
+  Smartphone,
+  Layout
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+export type ViewMode = "desktop" | "mobile";
 
 export default function Settings() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem("terrapulse-view-mode");
+    return (saved as ViewMode) || "desktop";
+  });
 
   const handleSignOut = async () => {
     await signOut();
     toast.success("Signed out successfully");
     navigate("/login");
+  };
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem("terrapulse-view-mode", mode);
+    toast.success(`View mode changed to ${mode}`);
   };
 
   return (
@@ -82,7 +99,7 @@ export default function Settings() {
             <h2 className="text-lg font-semibold text-foreground">Appearance</h2>
           </div>
           
-          <div className="flex items-center justify-between py-3">
+          <div className="flex items-center justify-between py-3 border-b border-border">
             <div className="flex items-center gap-3">
               {theme === "dark" ? (
                 <Moon className="w-5 h-5 text-muted-foreground" />
@@ -103,6 +120,39 @@ export default function Settings() {
               checked={theme === "dark"}
               onCheckedChange={toggleTheme}
             />
+          </div>
+
+          {/* View Mode Toggle - Moved from main page */}
+          <div className="py-3">
+            <div className="flex items-center gap-3 mb-3">
+              <Layout className="w-5 h-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium text-foreground">View Mode</p>
+                <p className="text-xs text-muted-foreground">
+                  Choose between desktop and mobile layout
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-2">
+              <Button
+                variant={viewMode === "desktop" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 gap-2"
+                onClick={() => handleViewModeChange("desktop")}
+              >
+                <Monitor className="w-4 h-4" />
+                Desktop
+              </Button>
+              <Button
+                variant={viewMode === "mobile" ? "default" : "outline"}
+                size="sm"
+                className="flex-1 gap-2"
+                onClick={() => handleViewModeChange("mobile")}
+              >
+                <Smartphone className="w-4 h-4" />
+                Mobile
+              </Button>
+            </div>
           </div>
         </section>
 

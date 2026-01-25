@@ -49,7 +49,7 @@ export function MapToolsPanel({
 }: MapToolsPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
-  const years = [2018, 2019, 2020, 2021, 2022, 2023, 2024];
+  const years = [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
 
   // Auto-play time slider
   useEffect(() => {
