@@ -2,12 +2,16 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Map, BarChart3, Settings, Wheat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { WeatherToggle } from "./WeatherToggle";
+import { WeatherData } from "@/hooks/useWeather";
 
 interface NavigationBarProps {
   className?: string;
+  weather?: WeatherData | null;
+  weatherLoading?: boolean;
 }
 
-export function NavigationBar({ className }: NavigationBarProps) {
+export function NavigationBar({ className, weather, weatherLoading }: NavigationBarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -37,6 +41,17 @@ export function NavigationBar({ className }: NavigationBarProps) {
           <span className="hidden sm:inline">{item.label}</span>
         </Button>
       ))}
+      
+      {/* Weather Toggle - appears on map page */}
+      {location.pathname === "/" && (
+        <>
+          <div className="w-px h-6 bg-border mx-1" />
+          <WeatherToggle 
+            weather={weather ?? null} 
+            loading={weatherLoading ?? false} 
+          />
+        </>
+      )}
     </div>
   );
 }

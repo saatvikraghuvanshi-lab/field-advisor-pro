@@ -1,17 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { FieldSidebar } from "@/components/FieldSidebar";
 import { LeafletMap, LeafletMapRef } from "@/components/LeafletMap";
 import { MapToolsPanel } from "@/components/MapToolsPanel";
 import { GeoTool } from "@/components/GeoprocessingToolbar";
 import { CustomLayer } from "@/components/DataLayerUpload";
 import { Alert, AlertNotification } from "@/components/AlertsPanel";
-import { WeatherWidget } from "@/components/WeatherWidget";
 import { FieldTelemetry } from "@/components/FieldTelemetry";
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
 import { FieldEditDialog } from "@/components/FieldEditDialog";
 import { NavigationBar } from "@/components/NavigationBar";
-import { Compass, Signal, Pencil, Route } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { DraggableFieldPanel } from "@/components/DraggableFieldPanel";
+import { Compass, Signal } from "lucide-react";
 import { toast } from "sonner";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useWeather } from "@/hooks/useWeather";
@@ -32,8 +30,8 @@ const Index = () => {
   const [selectedField, setSelectedField] = useState<Field | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
-  // View mode state - now from localStorage
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+  // View mode state - from localStorage
+  const [viewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem("terrapulse-view-mode");
     return (saved as ViewMode) || "desktop";
   });
@@ -165,17 +163,7 @@ const Index = () => {
       "flex h-screen w-full overflow-hidden",
       viewMode === "mobile" && "max-w-[390px] mx-auto border-x border-border"
     )}>
-      {/* Sidebar - hidden in mobile view */}
-      {viewMode === "desktop" && (
-        <FieldSidebar 
-          fields={fields}
-          selectedField={selectedField}
-          onFieldSelect={handleFieldSelect}
-          onEditField={() => setEditDialogOpen(true)}
-        />
-      )}
-
-      {/* Main Map Area */}
+      {/* Main Map Area - Full Width Now */}
       <main className="relative flex-1 overflow-hidden">
         {/* Map Container */}
         <div className="absolute inset-0">
@@ -190,36 +178,46 @@ const Index = () => {
           />
         </div>
 
-        {/* Navigation Bar */}
+        {/* Navigation Bar with Weather Toggle */}
         <div className="absolute top-4 left-4 z-[1000] pointer-events-none">
-          <NavigationBar className="pointer-events-auto" />
+          <NavigationBar 
+            className="pointer-events-auto" 
+            weather={weather}
+            weatherLoading={weatherLoading}
+          />
         </div>
 
-        {/* Status Bar */}
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] pointer-events-none hidden md:block">
-          <div className="surface-glass rounded-xl px-4 py-2.5 flex items-center gap-4 pointer-events-auto">
-            <div className="flex items-center gap-2">
-              <Compass className="w-4 h-4 text-primary" />
-              <span className="text-sm font-mono text-foreground">
-                Esri World Imagery
+        {/* Draggable Fields Panel */}
+        <DraggableFieldPanel
+          fields={fields}
+          selectedField={selectedField}
+          onFieldSelect={handleFieldSelect}
+          onEditField={() => setEditDialogOpen(true)}
+        />
+
+        {/* Status Bar - Top Center */}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[999] pointer-events-none hidden md:block">
+          <div className="surface-glass rounded-xl px-3 py-2 flex items-center gap-3 pointer-events-auto">
+            <div className="flex items-center gap-1.5">
+              <Compass className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-mono text-foreground">
+                Esri Imagery
               </span>
             </div>
-            <div className="w-px h-4 bg-border" />
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground font-mono">{currentYear}</span>
-            </div>
-            <div className="w-px h-4 bg-border" />
-            <div className="flex items-center gap-2">
-              <Signal className="w-4 h-4 text-success" />
-              <span className="text-xs text-muted-foreground">Connected</span>
+            <div className="w-px h-3.5 bg-border" />
+            <span className="text-xs text-muted-foreground font-mono">{currentYear}</span>
+            <div className="w-px h-3.5 bg-border" />
+            <div className="flex items-center gap-1.5">
+              <Signal className="w-3.5 h-3.5 text-success" />
+              <span className="text-xs text-muted-foreground">Live</span>
             </div>
           </div>
         </div>
 
-        {/* Tools Panel - Right Side (hidden in mobile or when field is selected) */}
+        {/* Tools Panel - Right Side */}
         <div className={cn(
-          "absolute top-4 z-[1000] max-h-[calc(100vh-8rem)] overflow-y-auto pointer-events-auto",
-          viewMode === "mobile" ? "right-4 w-64" : "right-16 w-80"
+          "absolute top-16 z-[1000] max-h-[calc(100vh-8rem)] overflow-hidden pointer-events-auto",
+          viewMode === "mobile" ? "right-4 w-56" : "right-16 w-72"
         )}>
           <MapToolsPanel
             fields={fields}
@@ -237,57 +235,31 @@ const Index = () => {
           />
         </div>
 
-        {/* Left Side Panels - Weather, Telemetry, AI Advisor */}
-        <div className={cn(
-          "absolute left-4 z-[1000] w-80 space-y-3 pointer-events-auto",
-          viewMode === "mobile" ? "hidden" : "top-20"
-        )}>
-          <WeatherWidget weather={weather} loading={weatherLoading} />
-          
-          {selectedField && (
-            <>
-              <div className="surface-glass rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {selectedField.name}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setEditDialogOpen(true)}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {selectedField.area_acres} acres • NDVI: {selectedField.ndvi_score ?? "N/A"}
-                </div>
-              </div>
-              
-              <FieldTelemetry field={selectedField} />
-              <AIAdvisorPanel field={selectedField} weather={weather} />
-            </>
-          )}
-        </div>
+        {/* Telemetry & AI Panel - Left Side (Desktop Only) */}
+        {viewMode === "desktop" && selectedField && (
+          <div className="absolute left-4 top-[320px] z-[999] w-72 space-y-2 pointer-events-auto">
+            <FieldTelemetry field={selectedField} />
+            <AIAdvisorPanel field={selectedField} weather={weather} />
+          </div>
+        )}
 
         {/* Bottom Status Bar */}
         <div className="absolute bottom-4 left-4 z-[1000] pointer-events-none">
-          <div className="surface-glass rounded-xl px-4 py-2.5 flex items-center gap-3 pointer-events-auto">
-            <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+          <div className="surface-glass rounded-xl px-3 py-2 flex items-center gap-2.5 pointer-events-auto">
+            <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
             <span className="text-xs text-muted-foreground">
               {fields.length > 0 
-                ? `${fields.length} field${fields.length > 1 ? 's' : ''} mapped • Total: ${fields.reduce((sum, f) => sum + Number(f.area_acres), 0).toFixed(2)} acres`
-                : "Ready to map • Use polygon tool to draw fields"
+                ? `${fields.length} field${fields.length > 1 ? 's' : ''} • ${fields.reduce((sum, f) => sum + Number(f.area_acres), 0).toFixed(1)} ac`
+                : "Draw polygons to add fields"
               }
             </span>
           </div>
         </div>
 
         {/* Scale Indicator */}
-        <div className="absolute bottom-4 right-4 z-[1000] pointer-events-none">
-          <div className="surface-glass rounded-lg px-3 py-1.5 flex items-center gap-2 pointer-events-auto">
-            <div className="w-12 h-0.5 bg-foreground rounded-full" />
+        <div className="absolute bottom-4 right-4 z-[999] pointer-events-none">
+          <div className="surface-glass rounded-lg px-2.5 py-1 flex items-center gap-1.5 pointer-events-auto">
+            <div className="w-10 h-0.5 bg-foreground rounded-full" />
             <span className="text-xs text-muted-foreground">1 km</span>
           </div>
         </div>
@@ -295,19 +267,17 @@ const Index = () => {
         {/* Mobile Bottom Bar (when in mobile view) */}
         {viewMode === "mobile" && selectedField && (
           <div className="absolute bottom-16 left-4 right-4 z-[1000] pointer-events-auto">
-            <div className="surface-glass rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
+            <div className="surface-glass rounded-xl p-3">
+              <div className="flex items-center justify-between mb-1.5">
                 <span className="text-sm font-medium text-foreground">
                   {selectedField.name}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <button
+                  className="text-xs text-primary"
                   onClick={() => setEditDialogOpen(true)}
                 >
-                  <Pencil className="w-4 h-4 mr-1" />
                   Edit
-                </Button>
+                </button>
               </div>
               <div className="text-xs text-muted-foreground">
                 {selectedField.area_acres} acres • NDVI: {selectedField.ndvi_score ?? "N/A"}

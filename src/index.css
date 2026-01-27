@@ -178,6 +178,35 @@
   }
 }
 
+/* Hide scrollbars globally but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom thin scrollbar for panels */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 2px;
+}
+
 /* Leaflet Geoman custom styling */
 .leaflet-pm-toolbar .leaflet-pm-icon-polygon,
 .leaflet-pm-toolbar .leaflet-pm-icon-rectangle,
@@ -188,4 +217,27 @@
 .leaflet-pm-toolbar .button-container {
   background-color: hsl(var(--card)) !important;
   border-color: hsl(var(--border)) !important;
+}
+
+/* Geoman toolbar positioning - stacked vertically on top right */
+.leaflet-pm-toolbar {
+  margin-top: 60px !important;
+}
+
+.leaflet-pm-toolbar .leaflet-pm-actions-container {
+  left: auto !important;
+  right: 100% !important;
+}
+
+/* Compact geoman buttons */
+.leaflet-pm-toolbar .button-container a {
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.leaflet-pm-toolbar .button-container a .leaflet-pm-icon-delete,
+.leaflet-pm-toolbar .button-container a .leaflet-pm-icon-polygon,
+.leaflet-pm-toolbar .button-container a .leaflet-pm-icon-rectangle {
+  width: 18px !important;
+  height: 18px !important;
 }
