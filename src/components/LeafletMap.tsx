@@ -8,8 +8,18 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { GeoTool } from "./GeoprocessingToolbar";
 import { CustomLayer } from "./DataLayerUpload";
-import { Crosshair, ZoomIn, ZoomOut, Navigation } from "lucide-react";
+import { ZoomIn, ZoomOut, Navigation, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+
 // Calculate geodesic area in acres
 function calculateAcres(latlngs: L.LatLng[]): number {
   const earthRadius = 6378137; // meters
@@ -50,6 +60,12 @@ function calculateDistance(p1: L.LatLng, p2: L.LatLng): number {
   return R * c;
 }
 
+const LAYERS = [
+  { id: "satellite", label: "Satellite Imagery" },
+  { id: "terrain", label: "Terrain" },
+  { id: "streets", label: "Streets" },
+];
+
 interface LeafletMapProps {
   onFieldSelect?: (field: any) => void;
   onFieldsChange?: (fields: any[]) => void;
@@ -81,7 +97,9 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
     const measurePointsRef = useRef<L.LatLng[]>([]);
     const measureMarkersRef = useRef<L.Marker[]>([]);
     const hasInitializedLocation = useRef(false);
+    const baseTileLayerRef = useRef<L.TileLayer | null>(null);
     const { user } = useAuth();
+    const [currentLayer, setCurrentLayer] = useState("satellite");
 
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -146,6 +164,40 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       locate: () => mapRef.current?.locate({ setView: true, maxZoom: 16 }),
       refreshFields: () => loadFields(),
     }));
+
+    // Change base layer
+    const handleLayerChange = useCallback((layerId: string) => {
+      if (!mapRef.current || !baseTileLayerRef.current) return;
+      
+      setCurrentLayer(layerId);
+      mapRef.current.removeLayer(baseTileLayerRef.current);
+      
+      let tileUrl = "";
+      let attribution = "";
+      
+      switch (layerId) {
+        case "satellite":
+          tileUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+          attribution = "Tiles &copy; Esri";
+          break;
+        case "terrain":
+          tileUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}";
+          attribution = "Tiles &copy; Esri";
+          break;
+        case "streets":
+          tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+          attribution = "&copy; OpenStreetMap contributors";
+          break;
+        default:
+          tileUrl = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+          attribution = "Tiles &copy; Esri";
+      }
+      
+      baseTileLayerRef.current = L.tileLayer(tileUrl, {
+        attribution,
+        maxZoom: 19,
+      }).addTo(mapRef.current);
+    }, []);
 
     // Load existing fields from database
     const loadFields = useCallback(async () => {
@@ -338,6 +390,16 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       }
     }, [onMeasurementResult]);
 
+    const handleLocate = useCallback(() => {
+      if (mapRef.current) {
+        if (userLocation) {
+          mapRef.current.setView([userLocation.latitude, userLocation.longitude], 15);
+        } else {
+          mapRef.current.locate({ setView: true, maxZoom: 16 });
+        }
+      }
+    }, [userLocation]);
+
     useEffect(() => {
       if (!mapContainerRef.current || mapRef.current) return;
 
@@ -351,7 +413,7 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       mapRef.current = map;
 
       // Esri World Imagery (satellite tiles)
-      L.tileLayer(
+      baseTileLayerRef.current = L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         {
           attribution: "Tiles &copy; Esri",
@@ -372,9 +434,9 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       customLayersRef.current.addTo(map);
       measureLayersRef.current.addTo(map);
 
-      // Initialize Geoman drawing controls - positioned at topleft to avoid overlap
+      // Initialize Geoman drawing controls - positioned at topright stacked
       map.pm.addControls({
-        position: "topleft",
+        position: "topright",
         drawCircle: false,
         drawCircleMarker: false,
         drawMarker: false,
@@ -478,16 +540,6 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
       }
     }, [userLocation]);
 
-    const handleLocate = useCallback(() => {
-      if (mapRef.current) {
-        if (userLocation) {
-          mapRef.current.setView([userLocation.latitude, userLocation.longitude], 15);
-        } else {
-          mapRef.current.locate({ setView: true, maxZoom: 16 });
-        }
-      }
-    }, [userLocation]);
-
     return (
       <div className="relative w-full h-full" style={{ minHeight: "400px" }}>
         <div
@@ -495,36 +547,70 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
           className="w-full h-full"
         />
 
-        {/* Map Controls - Bottom Right to avoid Geoman overlap */}
-        <div className="absolute bottom-20 right-4 z-[1001] flex flex-col gap-2">
+        {/* Map Controls - Bottom Right */}
+        <div className="absolute bottom-24 right-4 z-[1001] flex flex-col gap-1.5">
           <Button
             variant="outline"
             size="icon"
-            className="surface-glass h-9 w-9"
+            className="surface-glass h-8 w-8"
             onClick={() => mapRef.current?.zoomIn()}
             title="Zoom In"
           >
-            <ZoomIn className="w-4 h-4" />
+            <ZoomIn className="w-3.5 h-3.5" />
           </Button>
           <Button
             variant="outline"
             size="icon"
-            className="surface-glass h-9 w-9"
+            className="surface-glass h-8 w-8"
             onClick={() => mapRef.current?.zoomOut()}
             title="Zoom Out"
           >
-            <ZoomOut className="w-4 h-4" />
+            <ZoomOut className="w-3.5 h-3.5" />
           </Button>
-          <div className="w-full h-px bg-border my-1" />
+          <div className="w-full h-px bg-border my-0.5" />
           <Button
             variant="outline"
             size="icon"
-            className="surface-glass h-9 w-9"
+            className="surface-glass h-8 w-8"
             onClick={handleLocate}
             title="My Location"
           >
-            <Navigation className="w-4 h-4 text-primary" />
+            <Navigation className="w-3.5 h-3.5 text-primary" />
           </Button>
+          <div className="w-full h-px bg-border my-0.5" />
+          {/* Layers Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="surface-glass h-8 w-8"
+                title="Map Layers"
+              >
+                <Layers className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent 
+              side="left" 
+              align="start"
+              className="w-44 bg-popover border border-border shadow-lg z-[2000]"
+            >
+              <DropdownMenuLabel className="text-xs">Map Layers</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {LAYERS.map((layer) => (
+                <DropdownMenuItem
+                  key={layer.id}
+                  onClick={() => handleLayerChange(layer.id)}
+                  className={cn(
+                    "cursor-pointer text-sm",
+                    currentLayer === layer.id && "bg-primary/20 text-primary"
+                  )}
+                >
+                  {layer.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     );
