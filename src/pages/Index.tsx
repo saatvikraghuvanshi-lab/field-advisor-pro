@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { LeafletMap, LeafletMapRef } from "@/components/LeafletMap";
-import { FieldSidebar } from "@/components/FieldSidebar";
 import { MapToolsPanel } from "@/components/MapToolsPanel";
 import { GeoTool } from "@/components/GeoprocessingToolbar";
 import { CustomLayer } from "@/components/DataLayerUpload";
@@ -8,9 +7,9 @@ import { Alert, AlertNotification } from "@/components/AlertsPanel";
 import { FieldTelemetry } from "@/components/FieldTelemetry";
 import { AIAdvisorPanel } from "@/components/AIAdvisorPanel";
 import { FieldEditDialog } from "@/components/FieldEditDialog";
-import { WeatherWidget } from "@/components/WeatherWidget";
-import { Compass, Signal, Monitor, Smartphone } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { NavigationBar } from "@/components/NavigationBar";
+import { DraggableFieldPanel } from "@/components/DraggableFieldPanel";
+import { Compass, Signal } from "lucide-react";
 import { toast } from "sonner";
 import { useGeolocation } from "@/hooks/useGeolocation";
 import { useWeather } from "@/hooks/useWeather";
@@ -32,7 +31,7 @@ const Index = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   
   // View mode state - from localStorage
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+  const [viewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem("terrapulse-view-mode");
     return (saved as ViewMode) || "desktop";
   });
@@ -60,12 +59,6 @@ const Index = () => {
   const { weather, loading: weatherLoading, fetchWeather } = useWeather();
 
   const mapRef = useRef<LeafletMapRef>(null);
-
-  // Save view mode to localStorage
-  const handleViewModeChange = (mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem("terrapulse-view-mode", mode);
-  };
 
   // Fetch weather when location is available
   useEffect(() => {
@@ -170,15 +163,7 @@ const Index = () => {
       "flex h-screen w-full overflow-hidden",
       viewMode === "mobile" && "max-w-[390px] mx-auto border-x border-border"
     )}>
-      {/* Left Sidebar */}
-      <FieldSidebar
-        fields={fields}
-        selectedField={selectedField}
-        onFieldSelect={handleFieldSelect}
-        onEditField={() => setEditDialogOpen(true)}
-      />
-
-      {/* Main Map Area */}
+      {/* Main Map Area - Full Width Now */}
       <main className="relative flex-1 overflow-hidden">
         {/* Map Container */}
         <div className="absolute inset-0">
@@ -193,76 +178,66 @@ const Index = () => {
           />
         </div>
 
-        {/* Top Status Bar */}
-        <div className="absolute top-4 left-4 right-4 z-[1000] pointer-events-none">
-          <div className="flex items-center justify-between">
-            {/* Left: Status Info */}
-            <div className="surface-glass rounded-xl px-3 py-2 flex items-center gap-3 pointer-events-auto">
-              <div className="flex items-center gap-1.5">
-                <Compass className="w-3.5 h-3.5 text-primary" />
-                <span className="text-xs font-mono text-foreground">Esri World Imagery</span>
-              </div>
-              <div className="w-px h-3.5 bg-border" />
-              <span className="text-xs text-muted-foreground font-mono">{currentYear}</span>
-              <div className="w-px h-3.5 bg-border" />
-              <div className="flex items-center gap-1.5">
-                <Signal className="w-3.5 h-3.5 text-success" />
-                <span className="text-xs text-muted-foreground">Connected</span>
-              </div>
-              <div className="w-px h-3.5 bg-border" />
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-1">
-                <Button
-                  variant={viewMode === "desktop" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-6 px-2 gap-1"
-                  onClick={() => handleViewModeChange("desktop")}
-                >
-                  <Monitor className="w-3 h-3" />
-                  <span className="text-xs hidden sm:inline">Desktop</span>
-                </Button>
-                <Button
-                  variant={viewMode === "mobile" ? "default" : "ghost"}
-                  size="sm"
-                  className="h-6 px-2 gap-1"
-                  onClick={() => handleViewModeChange("mobile")}
-                >
-                  <Smartphone className="w-3 h-3" />
-                  <span className="text-xs hidden sm:inline">Mobile</span>
-                </Button>
-              </div>
-            </div>
+        {/* Navigation Bar with Weather Toggle */}
+        <div className="absolute top-4 left-4 z-[1000] pointer-events-none">
+          <NavigationBar 
+            className="pointer-events-auto" 
+            weather={weather}
+            weatherLoading={weatherLoading}
+          />
+        </div>
 
-            {/* Right: Tools Panel Trigger - moved further right to avoid Geoman overlap */}
-            <div className="pointer-events-auto mr-12">
-              <MapToolsPanel
-                fields={fields}
-                currentYear={currentYear}
-                onYearChange={setCurrentYear}
-                activeTool={activeTool}
-                onToolChange={handleToolChange}
-                measurementResult={measurementResult}
-                customLayers={customLayers}
-                onCustomLayersChange={setCustomLayers}
-                alerts={alerts}
-                notifications={notifications}
-                onAlertsChange={setAlerts}
-                onNotificationDismiss={handleNotificationDismiss}
-              />
+        {/* Draggable Fields Panel */}
+        <DraggableFieldPanel
+          fields={fields}
+          selectedField={selectedField}
+          onFieldSelect={handleFieldSelect}
+          onEditField={() => setEditDialogOpen(true)}
+        />
+
+        {/* Status Bar - Top Center */}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[999] pointer-events-none hidden md:block">
+          <div className="surface-glass rounded-xl px-3 py-2 flex items-center gap-3 pointer-events-auto">
+            <div className="flex items-center gap-1.5">
+              <Compass className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-mono text-foreground">
+                Esri Imagery
+              </span>
+            </div>
+            <div className="w-px h-3.5 bg-border" />
+            <span className="text-xs text-muted-foreground font-mono">{currentYear}</span>
+            <div className="w-px h-3.5 bg-border" />
+            <div className="flex items-center gap-1.5">
+              <Signal className="w-3.5 h-3.5 text-success" />
+              <span className="text-xs text-muted-foreground">Live</span>
             </div>
           </div>
         </div>
 
-        {/* Weather Widget - Top Left below status bar */}
-        {weather && (
-          <div className="absolute top-20 left-4 z-[999] pointer-events-auto">
-            <WeatherWidget weather={weather} loading={weatherLoading} />
-          </div>
-        )}
+        {/* Tools Panel - Right Side */}
+        <div className={cn(
+          "absolute top-16 z-[1000] max-h-[calc(100vh-8rem)] overflow-hidden pointer-events-auto",
+          viewMode === "mobile" ? "right-4 w-56" : "right-16 w-72"
+        )}>
+          <MapToolsPanel
+            fields={fields}
+            currentYear={currentYear}
+            onYearChange={setCurrentYear}
+            activeTool={activeTool}
+            onToolChange={handleToolChange}
+            measurementResult={measurementResult}
+            customLayers={customLayers}
+            onCustomLayersChange={setCustomLayers}
+            alerts={alerts}
+            notifications={notifications}
+            onAlertsChange={setAlerts}
+            onNotificationDismiss={handleNotificationDismiss}
+          />
+        </div>
 
         {/* Telemetry & AI Panel - Left Side (Desktop Only) */}
         {viewMode === "desktop" && selectedField && (
-          <div className="absolute left-4 top-[280px] z-[999] w-72 space-y-2 pointer-events-auto">
+          <div className="absolute left-4 top-[320px] z-[999] w-72 space-y-2 pointer-events-auto">
             <FieldTelemetry field={selectedField} />
             <AIAdvisorPanel field={selectedField} weather={weather} />
           </div>
@@ -274,7 +249,7 @@ const Index = () => {
             <div className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
             <span className="text-xs text-muted-foreground">
               {fields.length > 0 
-                ? `${fields.length} field${fields.length > 1 ? 's' : ''} mapped • Total: ${fields.reduce((sum, f) => sum + Number(f.area_acres), 0).toFixed(2)} acres`
+                ? `${fields.length} field${fields.length > 1 ? 's' : ''} • ${fields.reduce((sum, f) => sum + Number(f.area_acres), 0).toFixed(1)} ac`
                 : "Draw polygons to add fields"
               }
             </span>
