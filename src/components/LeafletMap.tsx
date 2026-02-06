@@ -547,8 +547,8 @@ export const LeafletMap = forwardRef<LeafletMapRef, LeafletMapProps>(
           className="w-full h-full"
         />
 
-        {/* Map Controls - Bottom Right */}
-        <div className="absolute bottom-24 right-4 z-[1001] flex flex-col gap-1.5">
+        {/* Map Controls - Bottom Right, positioned to avoid Geoman toolbar */}
+        <div className="absolute bottom-20 right-4 z-[1001] flex flex-col gap-1.5">
           <Button
             variant="outline"
             size="icon"
