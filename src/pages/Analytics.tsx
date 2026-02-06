@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  ArrowLeft, 
   Sparkles, 
   Loader2, 
   Send, 
@@ -10,13 +9,22 @@ import {
   TrendingUp,
   Leaf,
   Droplets,
-  Thermometer
+  Thermometer,
+  X,
+  MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { NavigationBar } from "@/components/NavigationBar";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, AreaChart } from "recharts";
 
 interface Message {
   role: "user" | "assistant";
@@ -25,11 +33,40 @@ interface Message {
 
 const ADVISOR_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rural-advisor`;
 
+// Mock performance data for the chart
+const performanceData = [
+  { year: "2018", ndvi: 0.42, moisture: 35, yield: 78 },
+  { year: "2019", ndvi: 0.48, moisture: 38, yield: 82 },
+  { year: "2020", ndvi: 0.52, moisture: 41, yield: 85 },
+  { year: "2021", ndvi: 0.45, moisture: 36, yield: 79 },
+  { year: "2022", ndvi: 0.55, moisture: 44, yield: 88 },
+  { year: "2023", ndvi: 0.58, moisture: 42, yield: 91 },
+  { year: "2024", ndvi: 0.61, moisture: 45, yield: 94 },
+  { year: "2025", ndvi: 0.59, moisture: 43, yield: 92 },
+  { year: "2026", ndvi: 0.63, moisture: 46, yield: 96 },
+];
+
+const chartConfig: ChartConfig = {
+  ndvi: {
+    label: "NDVI Score",
+    color: "hsl(var(--success))",
+  },
+  moisture: {
+    label: "Soil Moisture %",
+    color: "hsl(var(--primary))",
+  },
+  yield: {
+    label: "Yield Index",
+    color: "hsl(var(--warning))",
+  },
+};
+
 export default function Analytics() {
   const navigate = useNavigate();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [panelPosition, setPanelPosition] = useState({ x: 20, y: 100 });
   const [isDragging, setIsDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
@@ -175,25 +212,13 @@ export default function Analytics() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-sidebar/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <BarChart3 className="w-4 h-4 text-primary" />
-            </div>
-            <h1 className="text-lg font-semibold text-foreground">Analytics & AI Advisor</h1>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Navigation Bar */}
+      <NavigationBar />
 
-      <main className="max-w-7xl mx-auto p-4 space-y-6">
+      <main className="flex-1 max-w-7xl mx-auto w-full p-4 space-y-6">
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="surface-glass rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
               <Leaf className="w-4 h-4 text-success" />
@@ -206,7 +231,7 @@ export default function Analytics() {
           </div>
           <div className="surface-glass rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Droplets className="w-4 h-4 text-blue-500" />
+              <Droplets className="w-4 h-4 text-primary" />
               <span className="text-xs text-muted-foreground">Soil Moisture</span>
             </div>
             <p className="text-2xl font-bold text-foreground">42%</p>
@@ -214,7 +239,7 @@ export default function Analytics() {
           </div>
           <div className="surface-glass rounded-xl p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Thermometer className="w-4 h-4 text-orange-500" />
+              <Thermometer className="w-4 h-4 text-warning" />
               <span className="text-xs text-muted-foreground">Avg Temp</span>
             </div>
             <p className="text-2xl font-bold text-foreground">72°F</p>
@@ -230,97 +255,205 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* Analytics Content Placeholder */}
+        {/* Field Performance Chart */}
         <div className="surface-glass rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Field Performance Over Time</h2>
-          <p className="text-muted-foreground text-sm">
-            Select a field from the map to view detailed analytics and historical trends.
-          </p>
-          <div className="mt-4 h-64 flex items-center justify-center border border-dashed border-border rounded-lg">
-            <p className="text-muted-foreground">Chart visualization coming soon</p>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Field Performance Over Time (2018-2026)</h2>
+          <ChartContainer config={chartConfig} className="h-72 w-full">
+            <AreaChart data={performanceData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="ndviGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="moistureGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+              <XAxis dataKey="year" tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Area
+                type="monotone"
+                dataKey="ndvi"
+                stroke="hsl(var(--success))"
+                strokeWidth={2}
+                fill="url(#ndviGradient)"
+                name="NDVI Score"
+              />
+              <Area
+                type="monotone"
+                dataKey="moisture"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                fill="url(#moistureGradient)"
+                name="Soil Moisture %"
+              />
+              <Line
+                type="monotone"
+                dataKey="yield"
+                stroke="hsl(var(--warning))"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                name="Yield Index"
+              />
+            </AreaChart>
+          </ChartContainer>
+        </div>
+
+        {/* Additional Analytics Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="surface-glass rounded-xl p-6">
+            <h3 className="text-md font-semibold text-foreground mb-3">Seasonal Trends</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Spring Growth</span>
+                <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-success rounded-full" style={{ width: "78%" }} />
+                </div>
+                <span className="text-sm font-medium">78%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Summer Peak</span>
+                <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-warning rounded-full" style={{ width: "92%" }} />
+                </div>
+                <span className="text-sm font-medium">92%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Fall Harvest</span>
+                <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full" style={{ width: "85%" }} />
+                </div>
+                <span className="text-sm font-medium">85%</span>
+              </div>
+            </div>
+          </div>
+          <div className="surface-glass rounded-xl p-6">
+            <h3 className="text-md font-semibold text-foreground mb-3">Health Indicators</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Chlorophyll Level</span>
+                <span className="text-sm font-medium text-success">Optimal</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Stress Index</span>
+                <span className="text-sm font-medium text-success">Low</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Water Stress</span>
+                <span className="text-sm font-medium text-warning">Moderate</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Nutrient Status</span>
+                <span className="text-sm font-medium text-success">Good</span>
+              </div>
+            </div>
           </div>
         </div>
       </main>
 
+      {/* Floating AI Advisor Toggle Button */}
+      {!isPanelOpen && (
+        <Button
+          onClick={() => setIsPanelOpen(true)}
+          className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full shadow-lg"
+          size="icon"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </Button>
+      )}
+
       {/* Movable AI Advisor Panel */}
-      <div
-        className="fixed z-50 w-96 max-w-[calc(100vw-40px)]"
-        style={{ left: panelPosition.x, top: panelPosition.y }}
-      >
-        <div className="surface-glass rounded-xl shadow-2xl border border-border overflow-hidden">
-          {/* Drag Handle */}
-          <div
-            className="flex items-center gap-2 px-4 py-3 bg-primary/10 cursor-move select-none"
-            onMouseDown={handleMouseDown}
-          >
-            <GripVertical className="w-4 h-4 text-muted-foreground" />
-            <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm font-medium text-foreground flex-1">Rural AI Advisor</span>
-          </div>
-
-          {/* Messages */}
-          <ScrollArea className="h-80" ref={scrollRef}>
-            <div className="p-4 space-y-4">
-              {messages.length === 0 ? (
-                <div className="text-center py-8">
-                  <Sparkles className="w-8 h-8 text-primary mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    Ask me anything about your fields, crops, or farming practices!
-                  </p>
-                </div>
-              ) : (
-                messages.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "p-3 rounded-lg text-sm",
-                      msg.role === "user"
-                        ? "bg-primary/20 ml-8"
-                        : "bg-muted/50 mr-8"
-                    )}
-                  >
-                    <div 
-                      className="whitespace-pre-wrap"
-                      dangerouslySetInnerHTML={{ 
-                        __html: msg.content
-                          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                          .replace(/\n/g, '<br/>') 
-                      }}
-                    />
-                  </div>
-                ))
-              )}
-              {isLoading && messages[messages.length - 1]?.role === "user" && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm">Thinking...</span>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-
-          {/* Input */}
-          <div className="p-4 border-t border-border">
-            <div className="flex gap-2">
-              <Input
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask about your fields..."
-                disabled={isLoading}
-                className="flex-1"
-              />
-              <Button onClick={sendMessage} disabled={isLoading || !inputValue.trim()} size="icon">
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Send className="w-4 h-4" />
-                )}
+      {isPanelOpen && (
+        <div
+          className="fixed z-50 w-96 max-w-[calc(100vw-40px)]"
+          style={{ left: panelPosition.x, top: panelPosition.y }}
+        >
+          <div className="surface-glass rounded-xl shadow-2xl border border-border overflow-hidden">
+            {/* Drag Handle */}
+            <div
+              className="flex items-center gap-2 px-4 py-3 bg-primary/10 cursor-move select-none"
+              onMouseDown={handleMouseDown}
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground" />
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium text-foreground flex-1">Rural AI Advisor</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => setIsPanelOpen(false)}
+              >
+                <X className="w-4 h-4" />
               </Button>
+            </div>
+
+            {/* Messages */}
+            <div className="h-80 overflow-y-auto scrollbar-thin" ref={scrollRef}>
+              <div className="p-4 space-y-4">
+                {messages.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Sparkles className="w-8 h-8 text-primary mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      Ask me anything about your fields, crops, or farming practices!
+                    </p>
+                  </div>
+                ) : (
+                  messages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "p-3 rounded-lg text-sm",
+                        msg.role === "user"
+                          ? "bg-primary/20 ml-8"
+                          : "bg-muted/50 mr-8"
+                      )}
+                    >
+                      <div 
+                        className="whitespace-pre-wrap"
+                        dangerouslySetInnerHTML={{ 
+                          __html: msg.content
+                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                            .replace(/\n/g, '<br/>') 
+                        }}
+                      />
+                    </div>
+                  ))
+                )}
+                {isLoading && messages[messages.length - 1]?.role === "user" && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Thinking...</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Input */}
+            <div className="p-4 border-t border-border">
+              <div className="flex gap-2">
+                <Input
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask about your fields..."
+                  disabled={isLoading}
+                  className="flex-1"
+                />
+                <Button onClick={sendMessage} disabled={isLoading || !inputValue.trim()} size="icon">
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
