@@ -219,9 +219,10 @@
   border-color: hsl(var(--border)) !important;
 }
 
-/* Geoman toolbar positioning - stacked vertically on top right */
+/* Geoman toolbar positioning - stacked vertically on top right with offset */
 .leaflet-pm-toolbar {
-  margin-top: 60px !important;
+  margin-top: 8px !important;
+  margin-right: 8px !important;
 }
 
 .leaflet-pm-toolbar .leaflet-pm-actions-container {
@@ -229,15 +230,19 @@
   right: 100% !important;
 }
 
-/* Compact geoman buttons */
+/* Compact geoman buttons - smaller to avoid overlap */
+.leaflet-pm-toolbar .button-container {
+  margin-bottom: 2px !important;
+}
+
 .leaflet-pm-toolbar .button-container a {
-  width: 32px !important;
-  height: 32px !important;
+  width: 28px !important;
+  height: 28px !important;
 }
 
 .leaflet-pm-toolbar .button-container a .leaflet-pm-icon-delete,
 .leaflet-pm-toolbar .button-container a .leaflet-pm-icon-polygon,
 .leaflet-pm-toolbar .button-container a .leaflet-pm-icon-rectangle {
-  width: 18px !important;
-  height: 18px !important;
+  width: 16px !important;
+  height: 16px !important;
 }
